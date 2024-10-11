@@ -1,2 +1,2 @@
 # Empyrean-Injection
-My version of discord injection for the Bone-Skewer-Grabber-V2
+My version of discord injection
